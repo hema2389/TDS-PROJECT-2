@@ -1,0 +1,28 @@
+{
+  "name": "llm-quiz-system",
+  "version": "1.0.0",
+  "description": "LLM Analysis Quiz Solver API",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js",
+    "test": "node test.js"
+  },
+  "keywords": ["llm", "quiz", "api", "claude", "gpt"],
+  "author": "HEMA",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "puppeteer": "^21.5.0",
+    "axios": "^1.6.2",
+    "csv-parse": "^5.5.2",
+    "pdf-parse": "^1.1.1",
+    "sharp": "^0.33.0",
+    "form-data": "^4.0.0",
+    "dotenv": "^16.3.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
