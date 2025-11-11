@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Quiz API - Status Monitor</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: white;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .subtitle {
+            text-align: center;
+            margin-bottom: 40px;
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        .card {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            border-radius: 15px;
+            font-size: 1.5em;
+            font-weight: bold;
+            margin: 20px 0;
+            transition: all 0.3s;
+        }
+        .status-indicator.checking {
+            background: rgba(255, 193, 7, 0.3);
+            border: 3px solid #ffc107;
+        }
+        .status-indicator.online {
+            background: rgba(76, 175, 80, 0.3);
+            border: 3px solid #4caf50;
+        }
+        .status-indicator.offline {
+            background: rgba(244, 67, 54, 0.3);
+            border: 3px solid #f44336;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .info-row:last-child {
+            border-bottom: none;
+        }
+        .label {
+            font-weight: 600;
+            opacity: 0.9;
+        }
+        .value {
+            font-family: 'Courier New', monospace;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 4px 12px;
+            border-radius: 6px;
+        }
+        .url {
+            word-break: break-all;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.95em;
+        }
+        .btn {
+            width: 100%;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid white;
+            border-radius: 12px;
+            color: white;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 15px;
+        }
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+        .btn:active {
+            transform: translateY(0);
+        }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            opacity: 0.8;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 LLM Quiz API</h1>
+        <div class="subtitle">Real-time Status Monitor</div>
+        
+        <div class="card">
+            <h2 style="margin-bottom: 20px;">📡 Service Status</h2>
+            
+            <div class="status-indicator checking" id="status">
+                <span>🔄 Checking...</span>
+            </div>
+            
+            <div class="info-row">
+                <span class="label">Response Time:</span>
+                <span class="value" id="response-time">--</span>
+            </div>
+            
+            <div class="info-row">
+                <span class="label">Last Check:</span>
+                <span class="value" id="last-check">Never</span>
+            </div>
+            
+            <div class="info-row">
+                <span class="label">Total Checks:</span>
+                <span class="value" id="total-checks">0</span>
+            </div>
+            
+            <button class="btn" onclick="checkStatus()">🔄 Check Now</button>
+        </div>
+        
+        <div class="card">
+            <h2 style="margin-bottom: 20px;">🔗 API Endpoint</h2>
+            <div class="url" id="api-url">https://llm-quiz-hema.onrender.com</div>
+            
+            <div class="info-row">
+                <span class="label">Health Endpoint:</span>
+                <span class="value">/health</span>
+            </div>
+            
+            <div class="info-row">
+                <span class="label">Quiz Endpoint:</span>
+                <span class="value">/quiz</span>
+            </div>
+            
+            <div class="info-row">
+                <span class="label">Keep-Alive:</span>
+                <span class="value">GitHub Actions (Every 5 min)</span>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2 style="margin-bottom: 20px;">ℹ️ Information</h2>
+            <p style="line-height: 1.8; opacity: 0.95;">
+                ✅ <strong>Platform:</strong> Render.com (Free Tier)<br>
+                ✅ <strong>Uptime:</strong> 24/7 with GitHub Actions<br>
+                ✅ <strong>Auto-ping:</strong> Every 5 minutes (288/day)<br>
+                ✅ <strong>Region:</strong> Singapore<br>
+                ✅ <strong>Status:</strong> Production Ready
+            </p>
+        </div>
+        
+        <div class="footer">
+            Auto-refreshing every 30 seconds • Made for TDS Project
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://llm-quiz-hema.onrender.com';
+        let totalChecks = 0;
+
+        async function checkStatus() {
+            const statusEl = document.getElementById('status');
+            const responseTimeEl = document.getElementById('response-time');
+            const lastCheckEl = document.getElementById('last-check');
+            const totalChecksEl = document.getElementById('total-checks');
+            
+            statusEl.className = 'status-indicator checking';
+            statusEl.innerHTML = '<span>🔄 Checking...</span>';
+            
+            const startTime = Date.now();
+            
+            try {
+                const response = await fetch(`${API_URL}/health`);
+                const responseTime = Date.now() - startTime;
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    statusEl.className = 'status-indicator online';
+                    statusEl.innerHTML = '<span>✅ Online & Healthy</span>';
+                    responseTimeEl.textContent = `${responseTime}ms`;
+                    totalChecks++;
+                } else {
+                    statusEl.className = 'status-indicator offline';
+                    statusEl.innerHTML = `<span>⚠️ Issues (${response.status})</span>`;
+                    responseTimeEl.textContent = 'Error';
+                }
+            } catch (error) {
+                statusEl.className = 'status-indicator offline';
+                statusEl.innerHTML = '<span>❌ Offline</span>';
+                responseTimeEl.textContent = 'Failed';
+            }
+            
+            lastCheckEl.textContent = new Date().toLocaleTimeString();
+            totalChecksEl.textContent = totalChecks;
+        }
+
+        // Check on load
+        checkStatus();
+
+        // Auto-check every 30 seconds
+        setInterval(checkStatus, 30000);
+    </script>
+</body>
+</html>

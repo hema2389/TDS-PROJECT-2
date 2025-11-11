@@ -1,0 +1,63 @@
+name: Keep Render App Active 24/7
+
+on:
+  schedule:
+    # Run every 5 minutes
+    - cron: '*/5 * * * *'
+  
+  # Allow manual trigger
+  workflow_dispatch:
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Current Time
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🕐 Keep-alive ping at: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      
+      - name: Ping Health Endpoint
+        run: |
+          echo "Pinging health endpoint..."
+          response=$(curl -s -o /dev/null -w "%{http_code}" -m 30 https://tds-project-2-ytir.onrender.com/health)
+          echo "Response status: $response"
+          
+          if [ "$response" = "200" ]; then
+            echo "✅ SUCCESS: Render app is alive and responding!"
+          else
+            echo "⚠️  WARNING: Received status code: $response"
+            echo "App might be starting up or having issues"
+          fi
+      
+      - name: Ping Quiz Endpoint (Light Test)
+        continue-on-error: true
+        run: |
+          echo "Sending light test to quiz endpoint..."
+          curl -X POST https://tds-project-2-ytir.onrender.com/quiz \
+            -H "Content-Type: application/json" \
+            -d '{"email":"keepalive@test.com","secret":"test","url":"test"}' \
+            -s -o /dev/null -w "Status: %{http_code}\n" \
+            -m 30 || echo "Quiz endpoint test completed"
+      
+      - name: Additional Health Check
+        run: |
+          echo "Performing additional health check..."
+          health_response=$(curl -s -m 30 https://tds-project-2-ytir.onrender.com/health)
+          echo "Health response body: $health_response"
+          
+          if echo "$health_response" | grep -q "ok"; then
+            echo "✅ Health check passed - app is healthy"
+          else
+            echo "⚠️  Unexpected health response"
+          fi
+      
+      - name: Summary
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "✅ Keep-alive ping completed"
+          echo "📊 Next run in 5 minutes"
+          echo "🔄 Total runs per day: 288"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
