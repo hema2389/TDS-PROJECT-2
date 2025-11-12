@@ -1,6 +1,5 @@
 const express = require('express');
 const cors = require('cors');
-const puppeteer = require('puppeteer');
 const axios = require('axios');
 const { parse: parseCSV } = require('csv-parse/sync');
 const pdf = require('pdf-parse');
@@ -63,42 +62,65 @@ async function callClaude(prompt, systemPrompt = '', imageData = null, retries =
   }
 }
 
-// Fetch quiz page
+// Fetch quiz page (simple HTTP version - no Puppeteer needed)
 async function fetchQuizPage(url) {
-  let browser;
   try {
-    browser = await puppeteer.launch({
-      headless: 'new',
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--disable-software-rasterizer',
-        '--disable-extensions',
-        '--no-first-run',
-        '--no-zygote',
-        '--single-process'
-      ],
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || 
-                      process.env.CHROME_BIN || 
-                      '/usr/bin/chromium-browser' || 
-                      '/usr/bin/chromium'
-
+    console.log(`Fetching quiz page: ${url}`);
+    
+    const response = await axios.get(url, { 
+      timeout: 30000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
     });
     
-    const page = await browser.newPage();
-    await page.goto(url, { waitUntil: 'networkidle0', timeout: 30000 });
-    await page.waitForSelector('body', { timeout: 10000 });
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    let content = response.data;
     
-    const content = await page.evaluate(() => document.body.innerText);
+    // If it's HTML with script tags, try to extract and execute base64 content
+    if (typeof content === 'string' && content.includes('atob(')) {
+      console.log('Detected base64-encoded content, decoding...');
+      
+      // Extract base64 content from atob() calls
+      const base64Matches = content.match(/atob\([`'"]([^`'"]+)[`'"]\)/g);
+      
+      if (base64Matches) {
+        for (const match of base64Matches) {
+          const base64Content = match.match(/atob\([`'"]([^`'"]+)[`'"]\)/)[1];
+          try {
+            const decoded = Buffer.from(base64Content, 'base64').toString('utf-8');
+            content = decoded;
+            break;
+          } catch (e) {
+            console.error('Failed to decode base64:', e);
+          }
+        }
+      }
+    }
+    
+    // If still HTML, extract text content
+    if (typeof content === 'string' && content.includes('<')) {
+      // Remove script tags
+      content = content.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+      // Remove style tags
+      content = content.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
+      // Remove HTML tags
+      content = content.replace(/<[^>]+>/g, ' ');
+      // Decode HTML entities
+      content = content.replace(/&nbsp;/g, ' ')
+                       .replace(/&amp;/g, '&')
+                       .replace(/&lt;/g, '<')
+                       .replace(/&gt;/g, '>')
+                       .replace(/&quot;/g, '"');
+      // Clean up whitespace
+      content = content.replace(/\s+/g, ' ').trim();
+    }
+    
+    console.log(`Extracted content (first 200 chars): ${content.substring(0, 200)}`);
     return { content };
+    
   } catch (error) {
-    console.error('Error fetching quiz page:', error);
+    console.error('Error fetching quiz page:', error.message);
     throw error;
-  } finally {
-    if (browser) await browser.close();
   }
 }
 
@@ -143,14 +165,14 @@ async function solveQuiz(url, sessionId) {
     
     const analysisPrompt = `Analyze this quiz page and extract:
 1. The question being asked
-2. Any file URLs to download
-3. The submit URL for the answer
+2. Any file URLs to download (full URLs starting with http:// or https://)
+3. The submit URL for the answer (full URL starting with http:// or https://)
 4. The expected answer format (number, string, boolean, json, base64)
 
 Quiz content:
 ${content}
 
-Respond ONLY in JSON format:
+Respond ONLY in JSON format (no markdown, no code blocks):
 {
   "question": "the question",
   "downloadUrls": ["url1"],
@@ -159,8 +181,9 @@ Respond ONLY in JSON format:
 }`;
 
     const analysisResult = await callClaude(analysisPrompt);
-    const analysis = JSON.parse(analysisResult.replace(/```json\n?|\n?```/g, '').trim());
+    console.log(`[${sessionId}] Raw analysis result:`, analysisResult);
     
+    const analysis = JSON.parse(analysisResult.replace(/```json\n?|\n?```/g, '').trim());
     console.log(`[${sessionId}] Analysis:`, analysis);
     
     const downloadedFiles = [];
@@ -182,7 +205,7 @@ Respond ONLY in JSON format:
         
         downloadedFiles.push({ url: fileUrl, data: processedData });
       } catch (error) {
-        console.error(`[${sessionId}] Error downloading ${fileUrl}:`, error);
+        console.error(`[${sessionId}] Error downloading ${fileUrl}:`, error.message);
       }
     }
     
@@ -194,10 +217,10 @@ Data:
 ${downloadedFiles.map(f => `From ${f.url}:\n${typeof f.data === 'string' ? f.data : JSON.stringify(f.data)}`).join('\n\n')}
 
 Provide ONLY the answer in format: ${analysis.answerFormat}
-For numbers, provide just the number.
-For strings, provide just the string.
-For JSON, provide valid JSON.
-Be precise.`;
+For numbers, provide just the number with no text.
+For strings, provide just the string with no quotes.
+For JSON, provide valid JSON only.
+Be precise and accurate.`;
 
     let answer = await callClaude(solvingPrompt);
     answer = answer.trim();
@@ -238,7 +261,7 @@ Be precise.`;
     };
     
   } catch (error) {
-    console.error(`[${sessionId}] Error:`, error);
+    console.error(`[${sessionId}] Error:`, error.message);
     return {
       success: false,
       error: error.message
@@ -345,7 +368,7 @@ app.get('/health', (req, res) => {
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`🚀 Quiz API server running on port ${PORT}`);
-  console.log(`📧 Email: ${CONFIG.email}`);
+  console.log(`📧 Email: ${CONFIG.email || '⚠️  NOT SET'}`);
   console.log(`🔐 Secret: ${CONFIG.secret ? '***configured***' : '⚠️  NOT SET'}`);
   console.log(`🤖 Claude API: ${CONFIG.claudeApiKey ? '***configured***' : '⚠️  NOT SET'}`);
 });

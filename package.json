@@ -9,15 +9,11 @@
     "test": "node test.js"
   },
   "keywords": ["llm", "quiz", "api", "claude", "gpt"],
-  "author": "HEMA",
+  "author": "Hema",
   "license": "MIT",
-  "puppeteer": {
-  "skipDownload": true
-}
   "dependencies": {
     "express": "^4.18.2",
     "cors": "^2.8.5",
-    "puppeteer": "^19.11.1",
     "axios": "^1.6.2",
     "csv-parse": "^5.5.2",
     "pdf-parse": "^1.1.1",
