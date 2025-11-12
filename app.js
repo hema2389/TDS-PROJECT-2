@@ -69,7 +69,22 @@ async function fetchQuizPage(url) {
   try {
     browser = await puppeteer.launch({
       headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--disable-software-rasterizer',
+        '--disable-extensions',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process'
+      ],
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || 
+                      process.env.CHROME_BIN || 
+                      '/usr/bin/chromium-browser' || 
+                      '/usr/bin/chromium'
+
     });
     
     const page = await browser.newPage();
