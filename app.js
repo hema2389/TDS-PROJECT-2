@@ -20,13 +20,13 @@ const CONFIG = {
 
 const activeSessions = new Map();
 
-// 4-Layer LLM System: OpenAI → Gemini → Claude → Grok
+// 4-Layer LLM System: OpenAI → Gemini → Grok → Claude
 async function callLLM(prompt, systemPrompt = '', imageData = null) {
   const providers = [
     { name: 'OpenAI GPT-4o-mini', fn: callOpenAI, enabled: CONFIG.openaiApiKey },
     { name: 'Google Gemini', fn: callGemini, enabled: CONFIG.geminiApiKey },
-    { name: 'Claude Sonnet', fn: callClaude, enabled: CONFIG.claudeApiKey },
-    { name: 'Grok', fn: callGrok, enabled: CONFIG.grokApiKey }
+    { name: 'Grok', fn: callGrok, enabled: CONFIG.grokApiKey },
+    { name: 'Claude Sonnet', fn: callClaude, enabled: CONFIG.claudeApiKey }
   ];
 
   for (const provider of providers) {
@@ -42,7 +42,7 @@ async function callLLM(prompt, systemPrompt = '', imageData = null) {
     }
   }
   
-  throw new Error('All LLM providers failed (OpenAI, Gemini, Claude, Grok)');
+  throw new Error('All LLM providers failed (OpenAI, Gemini, Grok, Claude)');
 }
 
 // OpenAI GPT-4o-mini
@@ -108,6 +108,34 @@ async function callGemini(prompt, systemPrompt = '', imageData = null) {
   return response.data.candidates[0].content.parts[0].text;
 }
 
+// xAI Grok
+async function callGrok(prompt, systemPrompt = '', imageData = null) {
+  const messages = [
+    systemPrompt ? { role: 'system', content: systemPrompt } : null,
+    {
+      role: 'user',
+      content: imageData 
+        ? `${prompt}\n[Note: Image analysis requested but Grok doesn't support images yet]`
+        : prompt
+    }
+  ].filter(Boolean);
+
+  const response = await axios.post('https://api.x.ai/v1/chat/completions', {
+    model: 'grok-beta',
+    messages,
+    max_tokens: 4096,
+    temperature: 0.1
+  }, {
+    headers: {
+      'Authorization': `Bearer ${CONFIG.grokApiKey}`,
+      'Content-Type': 'application/json'
+    },
+    timeout: 90000
+  });
+
+  return response.data.choices[0].message.content;
+}
+
 // Anthropic Claude
 async function callClaude(prompt, systemPrompt = '', imageData = null) {
   const messages = [{
@@ -137,34 +165,6 @@ async function callClaude(prompt, systemPrompt = '', imageData = null) {
   });
 
   return response.data.content[0].text;
-}
-
-// xAI Grok
-async function callGrok(prompt, systemPrompt = '', imageData = null) {
-  const messages = [
-    systemPrompt ? { role: 'system', content: systemPrompt } : null,
-    {
-      role: 'user',
-      content: imageData 
-        ? `${prompt}\n[Note: Image analysis requested but Grok doesn't support images yet]`
-        : prompt
-    }
-  ].filter(Boolean);
-
-  const response = await axios.post('https://api.x.ai/v1/chat/completions', {
-    model: 'grok-beta',
-    messages,
-    max_tokens: 4096,
-    temperature: 0.1
-  }, {
-    headers: {
-      'Authorization': `Bearer ${CONFIG.grokApiKey}`,
-      'Content-Type': 'application/json'
-    },
-    timeout: 90000
-  });
-
-  return response.data.choices[0].message.content;
 }
 
 // Pattern matching
@@ -631,11 +631,11 @@ app.listen(PORT, () => {
   console.log(`🔐 Secret: ${CONFIG.secret ? '***' : '⚠️  NOT SET'}`);
   console.log(`🤖 OpenAI: ${CONFIG.openaiApiKey ? '✅ Primary' : '❌ NOT SET'}`);
   console.log(`🤖 Gemini: ${CONFIG.geminiApiKey ? '✅ Backup-1' : '⚠️  NOT SET'}`);
-  console.log(`🤖 Claude: ${CONFIG.claudeApiKey ? '✅ Backup-2' : '⚠️  NOT SET'}`);
-  console.log(`🤖 Grok: ${CONFIG.grokApiKey ? '✅ Backup-3' : '⚠️  NOT SET'}`);
+  console.log(`🤖 Grok: ${CONFIG.grokApiKey ? '✅ Backup-2' : '⚠️  NOT SET'}`);
+  console.log(`🤖 Claude: ${CONFIG.claudeApiKey ? '✅ Backup-3' : '⚠️  NOT SET'}`);
   console.log(`✨ Pattern matching: ✅ Enabled`);
   
-  if (!CONFIG.openaiApiKey && !CONFIG.geminiApiKey && !CONFIG.claudeApiKey && !CONFIG.grokApiKey) {
+  if (!CONFIG.openaiApiKey && !CONFIG.geminiApiKey && !CONFIG.grokApiKey && !CONFIG.claudeApiKey) {
     console.error('❌ ERROR: No LLM API key configured!');
   }
 });
