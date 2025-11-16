@@ -2,3 +2,6 @@ node_modules/
 .env
 *.log
 .DS_Store
+test-server.js
+logs.txt
+test.js
