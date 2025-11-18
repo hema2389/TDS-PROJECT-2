@@ -509,27 +509,13 @@ Provide ONLY the ${extracted.answerFormat} answer. No explanation, no refusal me
     console.log(`[${sessionId}] Final answer: ${answer}`);
     console.log(`[${sessionId}] Submitting to: ${extracted.submitUrl}`);
     
-    // Check if submit URL already has email/id parameters
-    const submitUrlObj = new URL(extracted.submitUrl);
-    const hasParams = submitUrlObj.searchParams.has('email') && submitUrlObj.searchParams.has('id');
-    
-    let submitPayload;
-    if (hasParams) {
-      // If URL has email/id params, only send url and answer in body
-      console.log(`[${sessionId}] 🔧 Submit URL has params, sending minimal payload`);
-      submitPayload = {
-        url: quizUrl,
-        answer: answer
-      };
-    } else {
-      // Normal payload with email and secret
-      submitPayload = {
-        email: CONFIG.email,
-        secret: CONFIG.secret,
-        url: quizUrl,
-        answer: answer
-      };
-    }
+    // Always include email and secret in the body
+    const submitPayload = {
+      email: CONFIG.email,
+      secret: CONFIG.secret,
+      url: quizUrl,
+      answer: answer
+    };
     
     console.log(`[${sessionId}] 📤 Payload:`, JSON.stringify(submitPayload, null, 2));
     
