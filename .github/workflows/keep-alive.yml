@@ -2,8 +2,8 @@ name: Keep Render App Active 24/7
 
 on:
   schedule:
-    # Run every 5 minutes
-    - cron: '*/5 * * * *'
+    # Run every 10 minutes (more GitHub Actions friendly than 5 min)
+    - cron: '*/10 * * * *'
   
   # Allow manual trigger
   workflow_dispatch:
@@ -11,6 +11,7 @@ on:
 jobs:
   keep-alive:
     runs-on: ubuntu-latest
+    timeout-minutes: 5  # Prevent workflow from hanging
     
     steps:
       - name: Current Time
@@ -19,45 +20,90 @@ jobs:
           echo "🕐 Keep-alive ping at: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       
-      - name: Ping Health Endpoint
+      - name: Ping Health Endpoint (with retry)
+        id: health_check
         run: |
-          echo "Pinging health endpoint..."
-          response=$(curl -s -o /dev/null -w "%{http_code}" -m 30 https://tds-project-2-ytir.onrender.com/health)
-          echo "Response status: $response"
+          echo "🔍 Pinging health endpoint..."
           
-          if [ "$response" = "200" ]; then
-            echo "✅ SUCCESS: Render app is alive and responding!"
+          # Retry logic for cold starts
+          MAX_ATTEMPTS=3
+          ATTEMPT=1
+          SUCCESS=false
+          
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+            echo "Attempt $ATTEMPT of $MAX_ATTEMPTS..."
+            
+            # Longer timeout for cold starts (60 seconds)
+            response=$(curl -s -o /dev/null -w "%{http_code}" -m 60 https://tds-project-2-ytir.onrender.com/health || echo "000")
+            
+            echo "Response status: $response"
+            
+            if [ "$response" = "200" ]; then
+              echo "✅ SUCCESS: Render app is alive and responding!"
+              SUCCESS=true
+              break
+            elif [ "$response" = "000" ]; then
+              echo "⏰ Timeout or connection error"
+            else
+              echo "⚠️  Received status code: $response"
+            fi
+            
+            if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
+              echo "Waiting 20 seconds before retry..."
+              sleep 20
+            fi
+            
+            ATTEMPT=$((ATTEMPT + 1))
+          done
+          
+          if [ "$SUCCESS" = "false" ]; then
+            echo "❌ FAILED after $MAX_ATTEMPTS attempts"
+            echo "status=failed" >> $GITHUB_OUTPUT
+            exit 1
           else
-            echo "⚠️  WARNING: Received status code: $response"
-            echo "App might be starting up or having issues"
+            echo "status=success" >> $GITHUB_OUTPUT
           fi
       
-      - name: Ping Quiz Endpoint (Light Test)
+      - name: Get Detailed Health Info
+        if: steps.health_check.outputs.status == 'success'
+        run: |
+          echo "📊 Fetching detailed health information..."
+          health_data=$(curl -s -m 30 https://tds-project-2-ytir.onrender.com/health)
+          
+          if [ $? -eq 0 ]; then
+            echo "$health_data" | jq '.' 2>/dev/null || echo "$health_data"
+          else
+            echo "⚠️  Could not fetch detailed health info"
+          fi
+      
+      - name: Test Sessions Endpoint
+        if: steps.health_check.outputs.status == 'success'
         continue-on-error: true
         run: |
-          echo "Sending light test to quiz endpoint..."
-          curl -X POST https://tds-project-2-ytir.onrender.com/quiz \
-            -H "Content-Type: application/json" \
-            -d '{"email":"keepalive@test.com","secret":"test","url":"test"}' \
-            -s -o /dev/null -w "Status: %{http_code}\n" \
-            -m 30 || echo "Quiz endpoint test completed"
-      
-      - name: Additional Health Check
-        run: |
-          echo "Performing additional health check..."
-          health_response=$(curl -s -m 30 https://tds-project-2-ytir.onrender.com/health)
-          echo "Health response body: $health_response"
-          
-          if echo "$health_response" | grep -q "ok"; then
-            echo "✅ Health check passed - app is healthy"
-          else
-            echo "⚠️  Unexpected health response"
-          fi
+          echo "🔍 Testing sessions endpoint..."
+          sessions=$(curl -s -m 30 https://tds-project-2-ytir.onrender.com/sessions)
+          echo "Active sessions: $(echo $sessions | jq 'length' 2>/dev/null || echo 'N/A')"
       
       - name: Summary
+        if: always()
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "✅ Keep-alive ping completed"
-          echo "📊 Next run in 5 minutes"
-          echo "🔄 Total runs per day: 288"
+          if [ "${{ steps.health_check.outputs.status }}" = "success" ]; then
+            echo "✅ Keep-alive ping SUCCESSFUL"
+          else
+            echo "❌ Keep-alive ping FAILED"
+            echo "🔧 Troubleshooting steps:"
+            echo "   1. Check Render logs: https://dashboard.render.com"
+            echo "   2. Verify Render URL is correct"
+            echo "   3. Ensure app is not sleeping/crashed"
+            echo "   4. Check if PORT env var is set correctly"
+          fi
+          echo "📊 Next run in 10 minutes"
+          echo "🔄 Total runs per day: 144"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      
+      - name: Send Alert (on failure)
+        if: failure()
+        run: |
+          echo "🚨 ALERT: Render app health check failed!"
+          echo "Check the Actions tab for details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
